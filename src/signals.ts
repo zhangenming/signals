@@ -1,6 +1,7 @@
 import {
   createComputation,
   read,
+  update,
   write,
 } from "./core";
 import type {
@@ -64,5 +65,5 @@ export function createEffect<T>(
   );
 
   signal._effect = true;
-  read.call(signal);
+  update(signal);
 }

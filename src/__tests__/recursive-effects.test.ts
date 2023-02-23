@@ -1,6 +1,6 @@
 import { describe, it, expect, test } from "vitest";
 
-import { createEffect, createRoot, untrack, createStore, unwrap, flushSync } from "../";
+import { createEffect, createRoot, untrack, createStore, unwrap, flushSync, createSignal, createMemo } from "../";
 import { sharedClone } from "./sharedClone";
 
 describe("recursive effects", () => {
@@ -86,5 +86,21 @@ describe("recursive effects", () => {
     flushSync();
     expect(next).not.toBe(prev);
     expect(called).toBe(2);
+  });
+
+  it("runs parent effects before child effects", () => {
+    const [x,setX] = createSignal(0);
+    const simpleM = createMemo(() => x());
+    let calls = 0;
+    createEffect(() => {
+      createEffect(() => {
+        console.log("child", x());
+        calls++;
+      });
+      console.log("parent", simpleM());
+    });
+    setX(1);
+    flushSync();
+    expect(calls).toBe(2);
   });
 });

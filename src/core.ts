@@ -39,7 +39,7 @@ function runEffects() {
 
   for (let i = 0; i < effects.length; i++) {
     // If parent owner is dirty it means that this effect will be disposed of so we skip.
-    if (!isZombie(effects[i])) read.call(effects[i]);
+    read.call(effects[i]);
   }
 
   effects = [];
@@ -235,7 +235,7 @@ function handleError(owner: Owner | null, error: unknown) {
 export function read(this: Computation): any {
   if (this._state === STATE_DISPOSED) return this._value;
 
-  if (currentObserver) {
+  if (currentObserver && !this._effect) {
     if (
       !currentObservers &&
       currentObserver._sources &&
@@ -327,18 +327,6 @@ export function isFunction(value: unknown): value is Function {
   return typeof value === "function";
 }
 
-export function isZombie(node: Owner) {
-  let owner = node._parent;
-
-  while (owner) {
-    // We're looking for a dirty parent effect owner.
-    if (owner._compute && owner._state === STATE_DIRTY) return true;
-    owner = owner._parent;
-  }
-
-  return false;
-}
-
 function updateIfNecessary(node: Computation) {
   if (node._state === STATE_CHECK) {
     for (let i = 0; i < node._sources!.length; i++) {
@@ -352,7 +340,18 @@ function updateIfNecessary(node: Computation) {
     }
   }
 
-  if (node._state === STATE_DIRTY) update(node);
+  if (node._state === STATE_DIRTY) {
+    let queue: Computation<any>[] = [];
+    let owner = node._parent;
+    while (owner) {
+      if (owner._compute && owner._state !== STATE_CLEAN) queue.push(owner as Computation<any>);
+      owner = owner._parent;
+    }
+    for (let i = queue.length - 1; i >= 0; i--) {
+      updateIfNecessary(queue[i]);
+    }
+    if ((node._state as number) !== STATE_DISPOSED) update(node);
+  }
   else node._state = STATE_CLEAN;
 }
 
@@ -363,7 +362,7 @@ function cleanup(node: Computation) {
   node._context = null;
 }
 
-function update(node: Computation) {
+export function update(node: Computation) {
   let prevObservers = currentObservers,
     prevObserversIndex = currentObserversIndex;
 
